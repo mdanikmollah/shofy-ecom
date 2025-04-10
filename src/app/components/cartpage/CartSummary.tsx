@@ -3,7 +3,9 @@ import Title from '../Title'
 import PriceFormat from '../PriceFormat'
 import { ProductType } from '../../../../type'
 import Button from '../Button';
-import toast from 'react-hot-toast';
+import { useSession } from 'next-auth/react';
+import { loadStripe } from '@stripe/stripe-js';
+
 
 interface Props {
   cart: ProductType[];
@@ -12,6 +14,8 @@ interface Props {
 const CartSummary = ({cart}:Props) => {
   const [totalAmt, setTotalAmt] = useState(0);
   const [discountAmt,setDiscountAmt] = useState(0);
+
+  const{ data: session} = useSession()
 
   useEffect(()=>{
     let amt = 0;
@@ -24,9 +28,29 @@ const CartSummary = ({cart}:Props) => {
     setDiscountAmt(discount);
   },[cart])
 
-  const handlecheckout = () => {
-    toast.success("Cheackout is comming soon!")
-  }
+  const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+
+  const handlecheckout = async() => {
+    const stripe = await stripePromise;
+    const response = await fetch("/api/checkout",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+      },
+      body:JSON.stringify({
+        items:cart,
+        email:session?.user?.email,
+      }),
+    })
+    const cheakoutSession = await response?.json()
+    const result: any = await stripe?.redirectToCheckout({
+      sessionId: cheakoutSession?.id,
+    });
+    
+    if (result?.error) {
+      window.alert(result?.error?.message)
+    }
+  };
   return (
     <div className="bg-gray-100 rounded-lg px-4 py-6 sm:p-10 lg:col-span-5 mt-10 lg:mt-0">
       <Title >Cart Summary</Title>
